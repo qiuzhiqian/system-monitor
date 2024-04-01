@@ -1,10 +1,32 @@
 mod utils;
+mod collector;
+
+mod cpu;
 
 use walkdir;
 use regex;
 
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// get config
+    Config{},
+    /// collect data
+    Collect{},
+    /// visual data
+    Visual{},
+}
+
 fn run_cmd_with_echo(cmd: &str, args: Vec<&str>) -> std::io::Result<()> {
-    println!("+ {} {:#?}", cmd, args);
+    println!(">>> {} {}", cmd, args.join(" "));
     println!("{}", utils::run_cmd(cmd, args)?);
     Ok(())
 }
@@ -237,16 +259,39 @@ fn wakeup_info() {
 }
 
 fn main() -> std::io::Result<()> {
-    show_os_info()?;
-    show_dim_info();
-    show_cpu_info();
-    show_fs_info();
-    show_platform_info();
-    show_audio_info();
-    show_graphics_info();
-    show_watchdog_info();
-    show_suspend_info();
-    disk_info();
-    wakeup_info();
+    let cli = Cli::parse();
+
+    if let Some(cmd) = cli.command {
+        match cmd {
+            Command::Config{} => { 
+                show_os_info()?;
+                show_dim_info();
+                show_cpu_info();
+                show_fs_info();
+                show_platform_info();
+                show_audio_info();
+                show_graphics_info();
+                show_watchdog_info();
+                show_suspend_info();
+                disk_info();
+                wakeup_info();
+            },
+            Command::Collect {  } => {
+                let cpus = cpu::enumerate_cpus();
+                println!("{}",cpus.len());
+                let mut c = collector::CpuCollector::new(cpus, "cpufreq.csv")?;
+                c.update()?;
+            },
+            Command::Visual {  } => {
+                println!("TODO");
+                let cpus = cpu::enumerate_cpus();
+                for cpu in cpus {
+                    println!("cpu: {:?}", cpu);
+                }
+            }
+        }
+    }
+
+    
     Ok(())
 }
