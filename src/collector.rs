@@ -1,3 +1,7 @@
+pub trait Collector {
+    fn update(&mut self) -> std::io::Result<()>;
+}
+
 pub struct CpuCollector {
     cpus: Vec<crate::cpu::CPU>,
     writer: csv::Writer<std::fs::File>,
@@ -13,11 +17,56 @@ impl CpuCollector {
         writer.write_record(header)?;
         Ok(Self { cpus, writer })
     }
-    pub fn update(&mut self) -> std::io::Result<()>{
-        let mut record = vec![1234.to_string()];
+}
+
+impl Collector for CpuCollector {
+    fn update(&mut self) -> std::io::Result<()>{
+        let since_epoch = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+            .expect("Time went backwards");
+
+        // 以秒为单位
+        let timestamp = since_epoch.as_secs();
+
+        let mut record = vec![timestamp.to_string()];
         if self.cpus.len() > 0 {
             for cpu in &self.cpus {
                 record.push(cpu.freq().to_string());
+            }
+        }
+        self.writer.write_record(record)?;
+        self.writer.flush()
+    }
+}
+
+pub struct CapacityCollector {
+    batterys: Vec<crate::battery::Battery>,
+    writer: csv::Writer<std::fs::File>,
+}
+
+impl CapacityCollector {
+    pub fn new(batterys: Vec<crate::battery::Battery>,file: &str) -> std::io::Result<Self> {
+        let mut writer = csv::Writer::from_path(file)?;
+        let mut header = vec!["timestamp".to_string()];
+        for battery in &batterys {
+            header.push(battery.name.clone());
+        }
+        writer.write_record(header)?;
+        Ok(Self { batterys, writer })
+    }
+}
+
+impl Collector for CapacityCollector {
+    fn update(&mut self) -> std::io::Result<()>{
+        let since_epoch = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+            .expect("Time went backwards");
+
+        // 以秒为单位
+        let timestamp = since_epoch.as_secs();
+
+        let mut record = vec![timestamp.to_string()];
+        if self.batterys.len() > 0 {
+            for battery in &self.batterys {
+                record.push(battery.capacity().to_string());
             }
         }
         self.writer.write_record(record)?;

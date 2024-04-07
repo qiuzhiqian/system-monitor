@@ -1,7 +1,9 @@
 mod utils;
 mod collector;
+mod visualization;
 
 mod cpu;
+mod battery;
 
 use walkdir;
 use regex;
@@ -277,17 +279,39 @@ fn main() -> std::io::Result<()> {
                 wakeup_info();
             },
             Command::Collect {  } => {
-                let cpus = cpu::enumerate_cpus();
-                println!("{}",cpus.len());
-                let mut c = collector::CpuCollector::new(cpus, "cpufreq.csv")?;
-                c.update()?;
+                let mut collectors: Vec<Box<dyn collector::Collector>> = Vec::new();
+                let cpus = cpu::enumerate();
+                //println!("{}",cpus.len());
+                if cpus.len() > 0{
+                    let c = Box::new(collector::CpuCollector::new(cpus, "cpufreq.csv")?);
+                    collectors.push(c);
+                }
+                let bats = battery::enumerate();
+                if bats.len() > 0 {
+                    let c = Box::new(collector::CapacityCollector::new(bats, "capacity.csv")?);
+                    collectors.push(c);
+                }
+                
+                for i in 0..10 {
+                    for c in &mut collectors {
+                        c.update()?;
+                    }
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                }
+
+                // do once at end
+                for c in &mut collectors {
+                    c.update()?;
+                }
+                let bat = battery::enumerate();
+                println!("{:#?}", bat);
             },
             Command::Visual {  } => {
-                println!("TODO");
-                let cpus = cpu::enumerate_cpus();
-                for cpu in cpus {
-                    println!("cpu: {:?}", cpu);
-                }
+                //let cpus = cpu::enumerate_cpus();
+                //for cpu in cpus {
+                //    println!("cpu: {:?}", cpu);
+                //}
+                visualization::show_cpu().unwrap();
             }
         }
     }

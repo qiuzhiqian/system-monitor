@@ -74,7 +74,7 @@ pub fn new_cpu(number: u32, vendor: &str, family: &str, model: &str) -> std::io:
     })
 }
 
-pub fn enumerate_cpus() -> Vec<CPU> {
+pub fn enumerate() -> Vec<CPU> {
     let mut cpus = Vec::<CPU>::new();
     if let Ok(input) = File::open("/proc/cpuinfo") {
         let reader = std::io::BufReader::new(input);
