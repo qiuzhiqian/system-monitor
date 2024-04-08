@@ -307,8 +307,12 @@ fn main() -> std::io::Result<()> {
                 println!("{:#?}", bat);
             },
             Command::Visual {  } => {
-                visualization::show_datas("cpufreq.csv", "cpufreq.svg", "show cpu freq chart").unwrap();
-                visualization::show_datas("capacity.csv", "capacity.svg", "show battery capacity chart").unwrap();
+                if let Err(e) = visualization::show_datas("cpufreq.csv", "cpufreq.svg", "show cpu freq chart") {
+                    println!("WARNING: {}", e);
+                }
+                if let Err(e) = visualization::show_datas("capacity.csv", "capacity.svg", "show battery capacity chart") {
+                    println!("WARNING: {}", e);
+                }
             }
         }
     }

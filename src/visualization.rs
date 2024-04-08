@@ -18,7 +18,7 @@ const COLORS:[RGBColor;20] = [
     RGBColor(0xb7, 0xba, 0x6b),
     RGBColor(0x7f, 0xb8, 0x0e),
     RGBColor(0x19, 0xd5, 0x3f),
-    
+
     RGBColor(0x50, 0xb7, 0xc1),
     RGBColor(0x44, 0x46, 0x93),
     RGBColor(0x85, 0x52, 0xa1),
@@ -76,7 +76,7 @@ fn datas(rdr: &mut csv::Reader<std::fs::File>) -> (i32,i32,i32,i32,Vec<Vec<(i32,
 // cpufreq.csv -> cpufreq.svg
 // capacity.csv -> capacity.svg
 pub fn show_datas(infile: &str, outfile: &str, desc: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let mut rdr = csv::Reader::from_path(infile).unwrap();
+    let mut rdr = csv::Reader::from_path(infile)?;
     let (min_x, max_x, min_y, max_y, datas) = datas(&mut rdr);
 
     let root = SVGBackend::new(outfile, (1920, 1080)).into_drawing_area();
@@ -91,7 +91,7 @@ pub fn show_datas(infile: &str, outfile: &str, desc: &str) -> Result<(), Box<dyn
 
     let mut index = 0;
     for data in datas {
-        chart.draw_series(LineSeries::new(data, COLORS[index % 20]))?;
+        chart.draw_series(LineSeries::new(data, COLORS[index % 20]).point_size(5))?;
         index = index + 1;
     }
 
