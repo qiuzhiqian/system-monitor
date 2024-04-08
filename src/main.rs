@@ -278,6 +278,11 @@ fn main() -> std::io::Result<()> {
                 show_suspend_info();
                 disk_info();
                 wakeup_info();
+
+                let bats = battery::enumerate();
+                println!("{:#?}", bats);
+                let thermals = thermal::enumerate();
+                println!("{:#?}", thermals);
             },
             Command::Collect {  } => {
                 let mut collectors: Vec<Box<dyn collector::Collector>> = Vec::new();
