@@ -4,6 +4,7 @@ mod visualization;
 
 mod cpu;
 mod battery;
+mod thermal;
 
 use walkdir;
 use regex;
@@ -288,11 +289,20 @@ fn main() -> std::io::Result<()> {
                 }
                 let bats = battery::enumerate();
                 if bats.len() > 0 {
-                    let c = Box::new(collector::CapacityCollector::new(bats, "capacity.csv")?);
+                    let c = Box::new(collector::CapacityCollector::new(bats.clone(), "capacity.csv")?);
+                    collectors.push(c);
+
+                    let c = Box::new(collector::PowerCollector::new(bats, "power.csv")?);
+                    collectors.push(c);
+                }
+
+                let thermals = thermal::enumerate();
+                if thermals.len() > 0 {
+                    let c = Box::new(collector::ThermalCollector::new(thermals, "thermal.csv")?);
                     collectors.push(c);
                 }
                 
-                for i in 0..10 {
+                for _ in 0..10 {
                     for c in &mut collectors {
                         c.update()?;
                     }
@@ -303,14 +313,18 @@ fn main() -> std::io::Result<()> {
                 for c in &mut collectors {
                     c.update()?;
                 }
-                let bat = battery::enumerate();
-                println!("{:#?}", bat);
             },
             Command::Visual {  } => {
                 if let Err(e) = visualization::show_datas("cpufreq.csv", "cpufreq.svg", "show cpu freq chart") {
                     println!("WARNING: {}", e);
                 }
                 if let Err(e) = visualization::show_datas("capacity.csv", "capacity.svg", "show battery capacity chart") {
+                    println!("WARNING: {}", e);
+                }
+                if let Err(e) = visualization::show_datas("power.csv", "power.svg", "show battery power chart") {
+                    println!("WARNING: {}", e);
+                }
+                if let Err(e) = visualization::show_datas("thermal.csv", "thermal.svg", "show thermal chart") {
                     println!("WARNING: {}", e);
                 }
             }

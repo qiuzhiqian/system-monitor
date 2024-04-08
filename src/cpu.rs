@@ -83,40 +83,49 @@ pub fn enumerate() -> Vec<CPU> {
         let mut vendor = String::new();
         let mut number = 0;
         let mut family = String::new();
-        //let mut model = String::new();
+        let mut model = String::new();
+        let mut found = false;
         for line in reader.lines() {
-            let line = line.unwrap();
+            let line = line.unwrap().trim().to_string();
             
             if line.starts_with("vendor_id\t") {
                 //
                 let v: Vec<&str> = line.split(":").collect();
                 if v.len() > 1 {
-                    //println!("{}", v[1].trim());
                     vendor = v[1].trim().to_string();
                 }
             } else if line.starts_with("processor\t") {
                 let v: Vec<&str> = line.split(":").collect();
                 if v.len() > 1 {
-                    //println!("{}", v[1].trim());
                     number = v[1].trim().parse::<u32>().unwrap();
+                    found = true;
                 }
             } else if line.starts_with("cpu family\t") {
                 let v: Vec<&str> = line.split(":").collect();
                 if v.len() > 1 {
-                    //println!("{}", v[1].trim());
                     family = v[1].trim().to_string();
                 }
 
             } else if line.starts_with("model\t") {
                 let v: Vec<&str> = line.split(":").collect();
                 if v.len() > 1 {
-                    //println!("{}", v[1].trim());
-                    let model = v[1].trim().to_string();
-                    if let Ok(cpu) = new_cpu(number, &vendor, &family, &model) {
-                        cpus.push(cpu);
-                    }
+                    model = v[1].trim().to_string();
                 }
             }
+
+            if line.is_empty() && found {
+                if let Ok(cpu) = new_cpu(number, &vendor, &family, &model) {
+                    cpus.push(cpu);
+                }
+                found = false;
+            }
+        }
+
+        if found {
+            if let Ok(cpu) = new_cpu(number, &vendor, &family, &model) {
+                cpus.push(cpu);
+            }
+            found = false;
         }
     }
 

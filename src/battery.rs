@@ -35,7 +35,7 @@ impl Battery {
                 return 0;
             }
         }
-        return 0
+        return 0;
     }
 
     pub fn voltage_now(&self) -> u32 {
@@ -46,7 +46,7 @@ impl Battery {
                 return 0;
             }
         }
-        return 0
+        return 0;
     }
 
     pub fn current_now(&self) -> u32 {
@@ -57,7 +57,7 @@ impl Battery {
                 return 0;
             }
         }
-        return 0
+        return 0;
     }
 
     pub fn power_now(&self) -> u32 {
