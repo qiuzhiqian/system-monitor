@@ -68,14 +68,16 @@ fn datas(rdr: &mut csv::Reader<std::fs::File>) -> (i32,i32,i32,i32,Vec<Vec<(i32,
     (min_x, max_x, min_y, max_y, datas)
 }
 
-pub fn show_cpu() -> Result<(), Box<dyn std::error::Error>> {
-    let mut rdr = csv::Reader::from_path("cpufreq.csv").unwrap();
+// cpufreq.csv -> cpufreq.svg
+// capacity.csv -> capacity.svg
+pub fn show_datas(infile: &str, outfile: &str, desc: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let mut rdr = csv::Reader::from_path(infile).unwrap();
     let (min_x, max_x, min_y, max_y, datas) = datas(&mut rdr);
 
-    let root = SVGBackend::new("0.svg", (1920, 1080)).into_drawing_area();
+    let root = SVGBackend::new(outfile, (1920, 1080)).into_drawing_area();
     root.fill(&WHITE)?;
     let mut chart = ChartBuilder::on(&root)
-        .caption("Line Chart with CSV", ("sans-serif", 40))
+        .caption(desc, ("sans-serif", 40))
         .set_label_area_size(LabelAreaPosition::Left, 50)
         .set_label_area_size(LabelAreaPosition::Bottom, 50)
         .build_cartesian_2d(min_x..max_x, min_y..max_y)?;

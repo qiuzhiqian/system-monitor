@@ -307,15 +307,11 @@ fn main() -> std::io::Result<()> {
                 println!("{:#?}", bat);
             },
             Command::Visual {  } => {
-                //let cpus = cpu::enumerate_cpus();
-                //for cpu in cpus {
-                //    println!("cpu: {:?}", cpu);
-                //}
-                visualization::show_cpu().unwrap();
+                visualization::show_datas("cpufreq.csv", "cpufreq.svg", "show cpu freq chart").unwrap();
+                visualization::show_datas("capacity.csv", "capacity.svg", "show battery capacity chart").unwrap();
             }
         }
     }
-
     
     Ok(())
 }
