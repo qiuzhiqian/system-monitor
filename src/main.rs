@@ -23,7 +23,11 @@ enum Command {
     /// get config
     Config{},
     /// collect data
-    Collect{},
+    Collect{
+        /// sum time to collect
+        #[arg(short='t',long="time", default_value="120")]
+        time: u32,
+    },
     /// visual data
     Visual{},
 }
@@ -284,7 +288,7 @@ fn main() -> std::io::Result<()> {
                 let thermals = thermal::enumerate();
                 println!("{:#?}", thermals);
             },
-            Command::Collect {  } => {
+            Command::Collect { time } => {
                 let mut collectors: Vec<Box<dyn collector::Collector>> = Vec::new();
                 let cpus = cpu::enumerate();
                 //println!("{}",cpus.len());
@@ -307,7 +311,8 @@ fn main() -> std::io::Result<()> {
                     collectors.push(c);
                 }
                 
-                for _ in 0..10 {
+                let count = (time + 4) / 5;
+                for _ in 0..count {
                     for c in &mut collectors {
                         c.update()?;
                     }
