@@ -65,6 +65,11 @@ fn datas(rdr: &mut csv::Reader<std::fs::File>) -> (i32,i32,i32,i32,Vec<Vec<(i32,
             }
         }
     }
+    
+    if min_y == max_y {
+        min_y = min_y - 10;
+        max_y = max_y + 10;
+    }
     (min_x, max_x, min_y, max_y, datas)
 }
 
