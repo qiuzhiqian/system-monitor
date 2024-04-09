@@ -315,6 +315,9 @@ fn main() -> std::io::Result<()> {
                 for _ in 0..count {
                     for c in &mut collectors {
                         c.update()?;
+                        if c.need_stop() {
+                            break;
+                        }
                     }
                     std::thread::sleep(std::time::Duration::from_secs(5));
                 }

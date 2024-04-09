@@ -68,7 +68,9 @@ impl Battery {
                 return 0;
             }
         }
-        return ( self.voltage_now() / 1000000 ) * (self.current_now() / 1000000);
+        let v = self.voltage_now() as f64 / 1000000.0;
+        let i = self.current_now() as f64 / 1000000.0;
+        return (v * i) as u32;
     }
 
     pub fn status(&self) -> String {

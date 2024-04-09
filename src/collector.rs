@@ -1,5 +1,6 @@
 pub trait Collector {
     fn update(&mut self) -> std::io::Result<()>;
+    fn need_stop(&self) -> bool;
 }
 
 pub struct CpuCollector {
@@ -36,11 +37,16 @@ impl Collector for CpuCollector {
         self.writer.write_record(record)?;
         self.writer.flush()
     }
+
+    fn need_stop(&self) -> bool {
+        false
+    }
 }
 
 pub struct CapacityCollector {
     batterys: Vec<crate::battery::Battery>,
     writer: csv::Writer<std::fs::File>,
+    last_capacity: u32,
 }
 
 impl CapacityCollector {
@@ -51,7 +57,7 @@ impl CapacityCollector {
             header.push(battery.name.clone());
         }
         writer.write_record(header)?;
-        Ok(Self { batterys, writer })
+        Ok(Self { batterys, writer, last_capacity:0 })
     }
 }
 
@@ -67,10 +73,15 @@ impl Collector for CapacityCollector {
         if self.batterys.len() > 0 {
             for battery in &self.batterys {
                 record.push(battery.capacity().to_string());
+                self.last_capacity = battery.capacity();
             }
         }
         self.writer.write_record(record)?;
         self.writer.flush()
+    }
+
+    fn need_stop(&self) -> bool {
+        self.last_capacity <= 5
     }
 }
 
@@ -108,6 +119,10 @@ impl Collector for PowerCollector {
         self.writer.write_record(record)?;
         self.writer.flush()
     }
+
+    fn need_stop(&self) -> bool {
+        false
+    }
 }
 
 pub struct ThermalCollector {
@@ -143,5 +158,9 @@ impl Collector for ThermalCollector {
         }
         self.writer.write_record(record)?;
         self.writer.flush()
+    }
+
+    fn need_stop(&self) -> bool {
+        false
     }
 }
