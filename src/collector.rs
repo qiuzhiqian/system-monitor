@@ -47,17 +47,18 @@ pub struct CapacityCollector {
     batterys: Vec<crate::battery::Battery>,
     writer: csv::Writer<std::fs::File>,
     last_capacity: u32,
+    min_capacity: u32,
 }
 
 impl CapacityCollector {
-    pub fn new(batterys: Vec<crate::battery::Battery>,file: &str) -> std::io::Result<Self> {
+    pub fn new(batterys: Vec<crate::battery::Battery>,file: &str, min: u32) -> std::io::Result<Self> {
         let mut writer = csv::Writer::from_path(file)?;
         let mut header = vec!["timestamp".to_string()];
         for battery in &batterys {
             header.push(battery.name.clone());
         }
         writer.write_record(header)?;
-        Ok(Self { batterys, writer, last_capacity:0 })
+        Ok(Self { batterys, writer, last_capacity:100 ,min_capacity: 5})
     }
 }
 
@@ -71,17 +72,21 @@ impl Collector for CapacityCollector {
 
         let mut record = vec![timestamp.to_string()];
         if self.batterys.len() > 0 {
+            let mut sum_capacity = 0;
             for battery in &self.batterys {
-                record.push(battery.capacity().to_string());
-                self.last_capacity = battery.capacity();
+                let cap = battery.capacity();
+                sum_capacity = sum_capacity + cap;
+                record.push(cap.to_string());
             }
+
+            self.last_capacity = sum_capacity / self.batterys.len() as u32;
         }
         self.writer.write_record(record)?;
         self.writer.flush()
     }
 
     fn need_stop(&self) -> bool {
-        self.last_capacity <= 5
+        self.last_capacity <= self.min_capacity
     }
 }
 

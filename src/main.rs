@@ -298,7 +298,7 @@ fn main() -> std::io::Result<()> {
                 }
                 let bats = battery::enumerate();
                 if bats.len() > 0 {
-                    let c = Box::new(collector::CapacityCollector::new(bats.clone(), "capacity.csv")?);
+                    let c = Box::new(collector::CapacityCollector::new(bats.clone(), "capacity.csv", 5)?);
                     collectors.push(c);
 
                     let c = Box::new(collector::PowerCollector::new(bats, "power.csv")?);
@@ -312,11 +312,11 @@ fn main() -> std::io::Result<()> {
                 }
                 
                 let count = (time + 4) / 5;
-                for _ in 0..count {
+                'outer: for _ in 0..count {
                     for c in &mut collectors {
                         c.update()?;
                         if c.need_stop() {
-                            break;
+                            break 'outer;
                         }
                     }
                     std::thread::sleep(std::time::Duration::from_secs(5));

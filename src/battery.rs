@@ -1,5 +1,3 @@
-use std::env::join_paths;
-
 #[derive(Clone, Debug)]
 pub struct Battery {
     pub name: String,
