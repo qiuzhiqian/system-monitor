@@ -19,7 +19,9 @@ jobs:
       run: cargo build --release
       
     - name: Zip the Build
-      run: zip -r ${{ secrets.ReleaseZipName }} ./target/release/system-monitor
+      run: |
+        ls target/release
+        tar cvzf system-monitor_amd64.tar.gz ./target/release/system-monitor
       
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -31,4 +33,4 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          ${{ secrets.ReleaseZipName }}.zip
+          system-monitor_amd64.tar.gz
