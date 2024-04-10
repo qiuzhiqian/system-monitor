@@ -35,7 +35,6 @@ jobs:
 
           # Create an result directory
           setup: |
-            echo "pwd=${PWD}"
             mkdir -p "${PWD}/result"
 
           # Mount the result directory as /result in the container
