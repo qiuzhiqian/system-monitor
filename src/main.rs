@@ -5,6 +5,7 @@ mod visualization;
 mod cpu;
 mod battery;
 mod thermal;
+mod hwmon;
 
 use walkdir;
 use regex;
@@ -287,6 +288,20 @@ fn main() -> std::io::Result<()> {
                 println!("{:#?}", bats);
                 let thermals = thermal::enumerate();
                 println!("{:#?}", thermals);
+                let hwmons = hwmon::enumerate();
+                for hwmon in hwmons {
+                    let fans = hwmon.fans();
+                    let temps = hwmon.temps();
+                    if !fans.is_empty() || !temps.is_empty() {
+                        println!("name: {}", hwmon.name);
+                        if !fans.is_empty() {
+                            println!("{:#?}", hwmon.fans());
+                        }
+                        if !temps.is_empty() {
+                            println!("{:#?}", hwmon.temps());
+                        }
+                    }
+                }
             },
             Command::Collect { time } => {
                 let mut collectors: Vec<Box<dyn collector::Collector>> = Vec::new();
