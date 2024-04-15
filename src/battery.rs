@@ -83,6 +83,9 @@ impl Battery {
 
 pub fn enumerate() -> Vec<Battery> {
     fn is_battery(entry: &walkdir::DirEntry) -> bool {
+        if entry.path().to_str().unwrap() == ROOTPATH {
+            return false;
+        }
         let realpath = if entry.file_type().is_symlink() {
             let paths = std::fs::read_link(entry.path()).unwrap();
             std::path::Path::new(ROOTPATH).join(paths).canonicalize().unwrap()

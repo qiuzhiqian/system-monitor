@@ -80,6 +80,9 @@ fn show_dim_info() {
 
 fn show_cpu_info() {
     fn is_cpuname(entry: &walkdir::DirEntry) -> bool {
+        if entry.path().to_str().unwrap() == "/sys/devices/system/cpu" {
+            return false;
+        }
         entry.file_name()
              .to_str()
              .map(|s| {
@@ -146,6 +149,9 @@ fn show_audio_info() {
 
 fn show_graphics_info() {
     fn is_cardname(entry: &walkdir::DirEntry) -> bool {
+        if entry.path().to_str().unwrap() == "/sys/class/drm" {
+            return false;
+        }
         let realpath = if entry.file_type().is_symlink() {
             let paths = std::fs::read_link(entry.path()).unwrap();
             std::path::Path::new("/sys/class/drm").join(paths).canonicalize().unwrap()
@@ -189,6 +195,9 @@ fn show_suspend_info() {
 
 fn disk_info() {
     fn is_scsihost_name(entry: &walkdir::DirEntry) -> bool {
+        if entry.path().to_str().unwrap() == "/sys/class/scsi_host" {
+            return false;
+        }
         entry.file_name()
              .to_str()
              .map(|s| {
@@ -212,6 +221,9 @@ fn disk_info() {
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e|  e.file_type().is_dir() || e.file_type().is_symlink()) {
+                if entry.path().to_str().unwrap() == "/sys/bus/pci/devices" {
+                    return;
+                }
                 let full_path =  entry.path().to_str().expect("is not path").to_string();
                 read_line_with_echo(&(full_path.clone() + "/power/control"));
     }
@@ -221,6 +233,9 @@ fn disk_info() {
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e|  e.file_type().is_dir() || e.file_type().is_symlink()) {
+                if entry.path().to_str().unwrap() == "/sys/block" {
+                    return;
+                }
                 if !entry.file_name().to_str().unwrap().starts_with("loop") {
                     let full_path =  entry.path().to_str().expect("is not path").to_string();
                     read_line_with_echo(&(full_path.clone() + "/device/power/control"));
@@ -248,6 +263,9 @@ fn wakeup_info() {
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e|  e.file_type().is_dir() || e.file_type().is_symlink()) {
+                if entry.path().to_str().unwrap() == "/sys/class/net" {
+                    return;
+                }
                 let name = entry.file_name().to_str().unwrap().to_string();
                 if name != "lo" && !name.starts_with("docker") {
                     let full_path =  entry.path().to_str().expect("is not path").to_string();
@@ -260,6 +278,9 @@ fn wakeup_info() {
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e| (e.file_type().is_dir() || e.file_type().is_symlink()) && is_usb_name(e)) {
+                if entry.path().to_str().unwrap() == "/sys/bus/usb/devices" {
+                    return;
+                }
                 let full_path =  entry.path().to_str().expect("is not path").to_string();
                 read_line_with_echo(&(full_path.clone() + "/power/wakeup"));
                 read_line_with_echo(&(full_path.clone() + "/link_power_management_policy"));
