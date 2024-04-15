@@ -14,28 +14,25 @@ jobs:
     steps:
     - name: Checkout source
       uses: actions/checkout@v2
+
+    - name: Prepare Build
+      run: |
+        wget http://musl.cc/aarch64-linux-musl-cross.tgz -O ${GITHUB_WORKSPACE}/aarch64-linux-musl-cross.tgz
+        tar xvzf ${GITHUB_WORKSPACE}/aarch64-linux-musl-cross.tgz -C ${GITHUB_WORKSPACE}/
       
     - name: Build
       run: |
+        export PATH=${GITHUB_WORKSPACE}/aarch64-linux-musl-cross/bin:${PATH}
         rustup target add x86_64-unknown-linux-musl
+        rustup target add aarch64-unknown-linux-musl
         cargo build --release --target x86_64-unknown-linux-musl
-
-    - name: Get previous commit
-      uses: actions/github-script@v4
-      with:
-        script: |
-          const commits = await github.repos.listCommits({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            per_page: 2
-          });
-          const previousCommit = commits.data[1].sha;
-          console.log(previousCommit);
+        cargo build --release --target aarch64-unknown-linux-musl --config='target.aarch64-unknown-linux-musl.linker="aarch64-linux-musl-ld"'
       
     - name: Zip the Build
       run: |
         ls target/release
         tar cvzf system-monitor_musl_amd64.tar.gz -C ./target/x86_64-unknown-linux-musl/release system-monitor
+        tar cvzf system-monitor_musl_arm64.tar.gz -C ./target/aarch64-unknown-linux-musl/release system-monitor
       
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -48,3 +45,4 @@ jobs:
         prerelease: false
         files: |
           system-monitor_musl_amd64.tar.gz
+          system-monitor_musl_arm64.tar.gz
