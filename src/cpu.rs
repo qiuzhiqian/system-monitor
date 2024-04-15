@@ -2,6 +2,8 @@
 use std::fs::File;
 use std::io::BufRead;
 
+static ROOTPATH: &str = "/sys/devices/system/cpu";
+
 #[derive(Clone, Debug)]
 pub struct CPU {
     number: u32,
@@ -33,7 +35,7 @@ impl CPU {
     }
 
     pub fn freq(&self) -> u32 {
-        if let Ok(freq_val) = crate::utils::read_line(&format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", self.number)) {
+        if let Ok(freq_val) = crate::utils::read_line(&format!("{}/cpu{}/cpufreq/scaling_cur_freq", ROOTPATH, self.number)) {
             if let Ok(val) = freq_val.parse::<u32>() {
                 return val
             } else {
@@ -45,19 +47,19 @@ impl CPU {
 }
 
 pub fn new_cpu(number: u32, vendor: &str, family: &str, model: &str) -> std::io::Result<CPU> {
-    let core_str = crate::utils::read_line(&format!("/sys/devices/system/cpu/cpu{}/topology/core_id", number))?;
+    let core_str = crate::utils::read_line(&format!("{}/cpu{}/topology/core_id", ROOTPATH, number))?;
     let core_id = core_str.parse::<u32>().map_err(|e| {std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())})?;
 
-    let physical_package = crate::utils::read_line(&format!("/sys/devices/system/cpu/cpu{}/topology/physical_package_id", number))?;
+    let physical_package = crate::utils::read_line(&format!("{}/cpu{}/topology/physical_package_id", ROOTPATH, number))?;
     let physical_package_id = physical_package.parse::<u32>().map_err(|e| {std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())})?;
 
-    let scaling_driver = crate::utils::read_line(&format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_driver", number))?;
-    let scaling_governor = crate::utils::read_line(&format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_governor", number))?;
+    let scaling_driver = crate::utils::read_line(&format!("{}/cpu{}/cpufreq/scaling_driver", ROOTPATH, number))?;
+    let scaling_governor = crate::utils::read_line(&format!("{}/cpu{}/cpufreq/scaling_governor", ROOTPATH, number))?;
 
-    let scaling_min_freq_str = crate::utils::read_line(&format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_min_freq", number))?;
+    let scaling_min_freq_str = crate::utils::read_line(&format!("{}/cpu{}/cpufreq/scaling_min_freq", ROOTPATH, number))?;
     let scaling_min_freq = scaling_min_freq_str.parse::<u32>().map_err(|e| {std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())})?;
 
-    let scaling_max_freq_str = crate::utils::read_line(&format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_max_freq", number))?;
+    let scaling_max_freq_str = crate::utils::read_line(&format!("{}/cpu{}/cpufreq/scaling_max_freq", ROOTPATH, number))?;
     let scaling_max_freq = scaling_max_freq_str.parse::<u32>().map_err(|e| {std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())})?;
 
     Ok(CPU{

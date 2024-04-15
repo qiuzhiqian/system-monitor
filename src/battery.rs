@@ -1,3 +1,5 @@
+static ROOTPATH: &str = "/sys/class/power_supply";
+
 #[derive(Clone, Debug)]
 pub struct Battery {
     pub name: String,
@@ -26,7 +28,7 @@ impl Battery {
     }
 
     pub fn capacity(&self) -> u32 {
-        if let Ok(raw_val) = crate::utils::read_line(&format!("/sys/class/power_supply/{}/capacity", self.name)) {
+        if let Ok(raw_val) = crate::utils::read_line(&format!("{}/{}/capacity", ROOTPATH, self.name)) {
             if let Ok(val) = raw_val.parse::<u32>() {
                 return val
             } else {
@@ -37,7 +39,7 @@ impl Battery {
     }
 
     pub fn voltage_now(&self) -> u32 {
-        if let Ok(raw_val) = crate::utils::read_line(&format!("/sys/class/power_supply/{}/voltage_now", self.name)) {
+        if let Ok(raw_val) = crate::utils::read_line(&format!("{}/{}/voltage_now", ROOTPATH, self.name)) {
             if let Ok(val) = raw_val.parse::<u32>() {
                 return val
             } else {
@@ -48,7 +50,7 @@ impl Battery {
     }
 
     pub fn current_now(&self) -> u32 {
-        if let Ok(raw_val) = crate::utils::read_line(&format!("/sys/class/power_supply/{}/current_now", self.name)) {
+        if let Ok(raw_val) = crate::utils::read_line(&format!("{}/{}/current_now", ROOTPATH, self.name)) {
             if let Ok(val) = raw_val.parse::<u32>() {
                 return val
             } else {
@@ -59,7 +61,7 @@ impl Battery {
     }
 
     pub fn power_now(&self) -> u32 {
-        if let Ok(raw_val) = crate::utils::read_line(&format!("/sys/class/power_supply/{}/power_now", self.name)) {
+        if let Ok(raw_val) = crate::utils::read_line(&format!("{}/{}/power_now", ROOTPATH, self.name)) {
             if let Ok(val) = raw_val.parse::<u32>() {
                 return val
             } else {
@@ -72,7 +74,7 @@ impl Battery {
     }
 
     pub fn status(&self) -> String {
-        if let Ok(raw_val) = crate::utils::read_line(&format!("/sys/class/power_supply/{}/status", self.name)) {
+        if let Ok(raw_val) = crate::utils::read_line(&format!("{}/{}/status", ROOTPATH, self.name)) {
             return raw_val;
         }
         return "".to_string();
@@ -83,7 +85,7 @@ pub fn enumerate() -> Vec<Battery> {
     fn is_battery(entry: &walkdir::DirEntry) -> bool {
         let realpath = if entry.file_type().is_symlink() {
             let paths = std::fs::read_link(entry.path()).unwrap();
-            std::path::Path::new("/sys/class/power_supply").join(paths).canonicalize().unwrap()
+            std::path::Path::new(ROOTPATH).join(paths).canonicalize().unwrap()
         } else if entry.file_type().is_dir() {
             entry.path().to_path_buf()
         } else {
@@ -102,7 +104,7 @@ pub fn enumerate() -> Vec<Battery> {
     }
 
     let mut batterys = Vec::new();
-    for entry in walkdir::WalkDir::new("/sys/class/power_supply")
+    for entry in walkdir::WalkDir::new(ROOTPATH)
             .sort_by_file_name()
             .max_depth(1)
             .into_iter()

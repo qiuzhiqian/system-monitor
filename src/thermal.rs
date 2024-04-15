@@ -1,3 +1,5 @@
+static ROOTPATH: &str = "/sys/class/thermal";
+
 #[derive(Clone, Debug)]
 pub struct Thermal {
     pub name: String,
@@ -29,7 +31,7 @@ impl Thermal {
         })
     }
     pub fn temp(&self) -> u32 {
-        if let Ok(raw_val) = crate::utils::read_line(&format!("/sys/class/thermal/{}/temp", self.name)) {
+        if let Ok(raw_val) = crate::utils::read_line(&format!("{}/{}/temp", ROOTPATH, self.name)) {
             if let Ok(val) = raw_val.parse::<u32>() {
                 return val
             } else {
@@ -44,7 +46,7 @@ pub fn enumerate() -> Vec<Thermal> {
     fn is_thermal(entry: &walkdir::DirEntry) -> bool {
         let realpath = if entry.file_type().is_symlink() {
             let paths = std::fs::read_link(entry.path()).unwrap();
-            std::path::Path::new("/sys/class/thermal/").join(paths).canonicalize().unwrap()
+            std::path::Path::new(ROOTPATH).join(paths).canonicalize().unwrap()
         } else if entry.file_type().is_dir() {
             entry.path().to_path_buf()
         } else {
@@ -56,7 +58,7 @@ pub fn enumerate() -> Vec<Thermal> {
     }
 
     let mut thermals = Vec::new();
-    for entry in walkdir::WalkDir::new("/sys/class/thermal")
+    for entry in walkdir::WalkDir::new(ROOTPATH)
             .sort_by_file_name()
             .max_depth(1)
             .into_iter()
