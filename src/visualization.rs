@@ -8,32 +8,29 @@ pub fn show_datas(infile: &str, outfile: &str, desc: &str) -> std::io::Result<()
     let mut rdr = csv::Reader::from_path(infile)?;
     let mut series_list = Vec::new();
     let mut x_axis_data = Vec::new();
-    let mut record_index = 0;
+    {
+        let headers = rdr.headers()?;
+        let mut index = 0;
+        for r in headers.into_iter() {
+            if index > 0 {
+                let tag = r.to_string();
+                series_list.push(Series::new(tag, Vec::new()));
+            }
+            index = index + 1;
+        }
+    }
+    
     for result in rdr.records() {
         let record = result.unwrap();
-        if record_index == 0 {
-            println!("find head.");
-            let mut index = 0;
-            for r in record.into_iter() {
-                if index > 0 {
-                    let tag = r.to_string();
-                    series_list.push(Series::new(tag, Vec::new()));
-                    println!("insert head.");
-                }
-                index = index + 1;
-            }
-        }
-
         for i in 0..record.len() {
             if i == 0 {
                 x_axis_data.push( record[i].to_string());
             } else {
                 series_list[i - 1].data.push(record[i].parse::<i32>().unwrap() as f32);
-                series_list[i - 1].label_show = true
+                //series_list[i - 1].label_show = true
             }
         }
 
-        record_index = record_index + 1;
     }
     let mut line_chart = LineChart::new(series_list, x_axis_data);
     line_chart.title_text = "Stacked Area Chart".to_string();
@@ -45,6 +42,7 @@ pub fn show_datas(infile: &str, outfile: &str, desc: &str) -> std::io::Result<()
     });
     line_chart.width = 1920.0;
     line_chart.height = 1080.0;
+    //line_chart.y_axis_configs = y_axis_configs;
 
     if let Ok(svg_data) = line_chart.svg() {
         let mut buffer = std::fs::File::create(outfile)?;
