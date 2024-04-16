@@ -94,6 +94,7 @@ fn show_cpu_info() {
 
     for entry in walkdir::WalkDir::new("/sys/devices/system/cpu")
             .max_depth(1)
+            .sort_by_file_name()
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e|  (e.file_type().is_dir() || e.file_type().is_symlink()) && is_cpuname(e)) {
@@ -208,6 +209,7 @@ fn disk_info() {
     }
     for entry in walkdir::WalkDir::new("/sys/class/scsi_host")
             .max_depth(1)
+            .sort_by_file_name()
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e|  (e.file_type().is_dir() || e.file_type().is_symlink()) && is_scsihost_name(e)) {
@@ -218,6 +220,7 @@ fn disk_info() {
 
     for entry in walkdir::WalkDir::new("/sys/bus/pci/devices")
             .max_depth(1)
+            .sort_by_file_name()
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e|  e.file_type().is_dir() || e.file_type().is_symlink()) {
@@ -230,6 +233,7 @@ fn disk_info() {
 
     for entry in walkdir::WalkDir::new("/sys/block")
             .max_depth(1)
+            .sort_by_file_name()
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e|  e.file_type().is_dir() || e.file_type().is_symlink()) {
@@ -260,6 +264,7 @@ fn wakeup_info() {
 
     for entry in walkdir::WalkDir::new("/sys/class/net")
             .max_depth(1)
+            .sort_by_file_name()
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e|  e.file_type().is_dir() || e.file_type().is_symlink()) {
@@ -275,6 +280,7 @@ fn wakeup_info() {
 
     for entry in walkdir::WalkDir::new("/sys/bus/usb/devices")
             .max_depth(1)
+            .sort_by_file_name()
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e| (e.file_type().is_dir() || e.file_type().is_symlink()) && is_usb_name(e)) {
@@ -306,15 +312,23 @@ fn main() -> std::io::Result<()> {
                 wakeup_info();
 
                 let bats = battery::enumerate();
-                println!("{:#?}", bats);
+                if !bats.is_empty() {
+                    println!(">> battery <<");
+                    println!("{:#?}", bats);
+                }
+                
                 let thermals = thermal::enumerate();
-                println!("{:#?}", thermals);
+                if !thermals.is_empty() {
+                    println!(">> thermal <<");
+                    println!("{:#?}", thermals);
+                }
+                
                 let hwmons = hwmon::enumerate();
                 for hwmon in hwmons {
                     let fans = hwmon.fans();
                     let temps = hwmon.temps();
                     if !fans.is_empty() || !temps.is_empty() {
-                        println!("name: {}", hwmon.name);
+                        println!(">> hwmon name: {} <<", hwmon.name);
                         if !fans.is_empty() {
                             println!("{:#?}", hwmon.fans());
                         }
