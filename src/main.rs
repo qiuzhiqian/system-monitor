@@ -2,6 +2,7 @@ mod utils;
 mod collector;
 mod visualization;
 
+mod config;
 mod cpu;
 mod battery;
 mod thermal;
@@ -301,6 +302,7 @@ fn main() -> std::io::Result<()> {
             Command::Config{} => { 
                 show_os_info()?;
                 show_dim_info();
+                println!("--------------");
                 show_cpu_info();
                 show_fs_info();
                 show_platform_info();
@@ -310,6 +312,7 @@ fn main() -> std::io::Result<()> {
                 show_suspend_info();
                 disk_info();
                 wakeup_info();
+                println!("--------------");
 
                 let bats = battery::enumerate();
                 if !bats.is_empty() {
