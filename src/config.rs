@@ -1,23 +1,33 @@
+use std::io::BufRead;
+
 use bitflags::bitflags;
 
 bitflags!{
+    #[derive(Clone, Debug)]
+    #[derive(PartialEq)]
     struct PERMISSION: u32 {
         const READ = 1;
         const WRITE = 1 << 1;
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Config {
-    node: String,
-    value: Option<String>,
+    pub node: String,
+    pub value: Option<String>,
     permission: PERMISSION,
 }
 
 impl Config {
     fn new(node: &str) -> Config {
+        let value  = match crate::utils::read_line(node) {
+            Ok(v) => Some(v),
+            Err(e) => None,
+        };
+
         Config {
             node: node.to_string(),
-            value: None,
+            value,
             permission: PERMISSION::READ,
         }
     }
@@ -27,111 +37,119 @@ impl Config {
         self
     }
 
-    fn update(&mut self, root: &str) {
-        self.value  = match crate::utils::read_line(&format!("{}/{}", root, self.node)) {
-            Ok(v) => Some(v),
-            Err(e) => None,
-        };
-    }
-}
-
-pub struct Module {
-    root: String,
-    configs: Vec<Config>,
-}
-
-impl Module {
-    pub fn update(&mut self) {
-        for config in &mut self.configs {
-            config.update(&self.root)
+    pub fn apply(&self) ->std::io::Result<()> {
+        match &self.value {
+            Some(val) => {
+                crate::utils::write_line(&self.node, &val).unwrap();
+                Ok(())
+            },
+            None => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "val is none")),
         }
     }
+
+    pub fn writeable(&self) -> bool {
+        match &self.value {
+            Some(_) => {
+                (self.permission.clone() & PERMISSION::WRITE) == PERMISSION::WRITE
+            },
+            None => false,
+        }
+    }
+
+    pub fn load(infile: &str) -> Vec<Self> {
+        let file = std::fs::File::open(infile).unwrap();
+        let mut f = std::io::BufReader::new(file);
+        
+        let mut configs = Vec::new();
+        let mut start: bool = false;
+        let mut config = Config::new("");
+        let mut new_config = false;
+        loop {
+            let mut buf = String::new();
+            let len = f.read_line(&mut buf).unwrap();
+            if len == 0 {
+                break;
+            }
+
+            let buf = buf.trim();
+
+            if !start && buf.starts_with("----------") {
+                start = true;
+            } else if start && buf.starts_with("----------") {
+                break;
+            } else if start {
+                if buf.is_empty() {
+                    continue;
+                } else if buf.starts_with("+ ") {
+                    new_config = true;
+                    config.node = buf[2..].to_string();
+                } else if new_config {
+                    new_config = false;
+                    if buf.starts_with("ERROR:") || buf.starts_with("WARNING:") {
+                        continue;
+                    } else {
+                        config.value = Some(buf.to_string());
+                        configs.push(config.clone());
+                    }
+                }
+            }
+        }
+        configs
+    }
 }
 
-impl std::fmt::Display for Module {
+impl std::fmt::Display for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // 自定义格式，使得仅显示 `x` 和 `y` 的值。
-        for config in &self.configs {
-            writeln!(f, "+ {}/{}", self.root, config.node)?;
-            match &config.value {
-                Some(v) => writeln!(f, "{}", v)?,
-                None => writeln!(f, "WARNING: can't read {}/{}", self.root, config.node)?,
-            }
+        writeln!(f, "+ {}", self.node)?;
+        match &self.value {
+            Some(v) => write!(f, "{}", v)?,
+            None => write!(f, "WARNING: can't read {}", self.node)?,
         }
         Ok(())
     }
 }
 
-pub fn enumerate() -> Vec<Module>{
-    let mut modules = Vec::new();
-    if let Ok(m) = enumerate_cpu() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_vm() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_fs() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_acpi() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_audio() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_graphics() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_kernel() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_power() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_scsihost() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_pci_device() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_block_device() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_pcie_aspm() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_net_wakeup() {
-        modules.push(m);
-    }
-
-    if let Ok(m) = enumerate_usb_wakeup() {
-        modules.push(m);
-    }
-
-    for module in &mut modules {
-        module.update();
-    }
-    
-    modules
+pub struct Module {
+    info: String,
+    pub configs: Vec<Config>,
 }
 
-fn enumerate_cpu() -> std::io::Result<Module> {
+impl Module {
+    pub fn load(infile: &str) -> Module {
+        Module {
+            info: "".to_string(),
+            configs: Config::load(infile),
+        }
+    }
+}
+
+pub fn enumerate() -> Module {
     let mut module = Module {
-        root: "/sys/devices/system/cpu".to_string(),
+        info: "".to_string(),
         configs: Vec::new(),
     };
+
+    module.configs.append(&mut enumerate_cpu());
+    module.configs.append(&mut enumerate_vm());
+    module.configs.append(&mut enumerate_fs());
+    module.configs.append(&mut enumerate_acpi());
+    module.configs.append(&mut enumerate_audio());
+    module.configs.append(&mut enumerate_graphics());
+    module.configs.append(&mut enumerate_kernel());
+    module.configs.append(&mut enumerate_power());
+    module.configs.append(&mut enumerate_scsihost());
+    module.configs.append(&mut enumerate_pci_device());
+    module.configs.append(&mut enumerate_block_device());
+    module.configs.append(&mut enumerate_pcie_aspm());
+    module.configs.append(&mut enumerate_net_wakeup());
+    module.configs.append(&mut enumerate_usb_wakeup());
+    
+    module
+}
+
+fn enumerate_cpu() -> Vec<Config> {
+    let mut configs = Vec::new();
 
     fn is_cpuname(entry: &walkdir::DirEntry) -> bool {
         if entry.path().to_str().unwrap() == "/sys/devices/system/cpu" {
@@ -152,84 +170,72 @@ fn enumerate_cpu() -> std::io::Result<Module> {
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e|  (e.file_type().is_dir() || e.file_type().is_symlink()) && is_cpuname(e)) {
-                let base_name = entry.path().file_name().unwrap().to_str().unwrap().to_string();
-                module.configs.push(Config::new(&format!("{}/cpufreq/scaling_driver", base_name)));
-                module.configs.push(Config::new(&format!("{}/cpufreq/scaling_governor", base_name)).add_permission(PERMISSION::WRITE));
-                module.configs.push(Config::new(&format!("{}/cpufreq/scaling_available_governors", base_name)));
-                module.configs.push(Config::new(&format!("{}/cpufreq/scaling_min_freq", base_name)));
-                module.configs.push(Config::new(&format!("{}/cpufreq/scaling_max_freq", base_name)));
-                module.configs.push(Config::new(&format!("{}/cpufreq/cpuinfo_min_freq", base_name)));
-                module.configs.push(Config::new(&format!("{}/cpufreq/cpuinfo_max_freq", base_name)));
-                module.configs.push(Config::new(&format!("{}/cpufreq/energy_performance_preference", base_name)).add_permission(PERMISSION::WRITE));
-                module.configs.push(Config::new(&format!("{}/cpufreq/energy_performance_available_preferences", base_name)));
-                module.configs.push(Config::new(&format!("{}/cpufreq/boost", base_name)));
-                module.configs.push(Config::new(&format!("{}/power/energy_perf_bias", base_name)).add_permission(PERMISSION::WRITE));
+                let fullpath = entry.path().to_str().unwrap();
+                configs.push(Config::new(&format!("{}/cpufreq/scaling_driver", fullpath)));
+                configs.push(Config::new(&format!("{}/cpufreq/scaling_governor", fullpath)).add_permission(PERMISSION::WRITE));
+                configs.push(Config::new(&format!("{}/cpufreq/scaling_available_governors", fullpath)));
+                configs.push(Config::new(&format!("{}/cpufreq/scaling_min_freq", fullpath)));
+                configs.push(Config::new(&format!("{}/cpufreq/scaling_max_freq", fullpath)));
+                configs.push(Config::new(&format!("{}/cpufreq/cpuinfo_min_freq", fullpath)));
+                configs.push(Config::new(&format!("{}/cpufreq/cpuinfo_max_freq", fullpath)));
+                configs.push(Config::new(&format!("{}/cpufreq/energy_performance_preference", fullpath)).add_permission(PERMISSION::WRITE));
+                configs.push(Config::new(&format!("{}/cpufreq/energy_performance_available_preferences", fullpath)));
+                configs.push(Config::new(&format!("{}/cpufreq/boost", fullpath)));
+                configs.push(Config::new(&format!("{}/power/energy_perf_bias", fullpath)).add_permission(PERMISSION::WRITE));
     }
 
-    module.configs.push(Config::new("intel_pstate/max_perf_pct"));
-    module.configs.push(Config::new("intel_pstate/min_perf_pct"));
-    module.configs.push(Config::new("intel_pstate/num_pstates"));
-    module.configs.push(Config::new("intel_pstate/turbo_pct"));
-    module.configs.push(Config::new("intel_pstate/no_turbo"));
-    module.configs.push(Config::new("intel_pstate/hwp_dynamic_boost"));
-    module.configs.push(Config::new("intel_pstate/status"));
-    module.configs.push(Config::new("intel_pstate/energy_efficiency"));
-    module.configs.push(Config::new("cpuidle/current_driver"));
-    module.configs.push(Config::new("cpuidle/available_governors"));
-    module.configs.push(Config::new("cpuidle/current_governor").add_permission(PERMISSION::WRITE));
-    Ok(module)
+    configs.push(Config::new("/sys/devices/system/cpu/intel_pstate/max_perf_pct"));
+    configs.push(Config::new("/sys/devices/system/cpu/intel_pstate/min_perf_pct"));
+    configs.push(Config::new("/sys/devices/system/cpu/intel_pstate/num_pstates"));
+    configs.push(Config::new("/sys/devices/system/cpu/intel_pstate/turbo_pct"));
+    configs.push(Config::new("/sys/devices/system/cpu/intel_pstate/no_turbo"));
+    configs.push(Config::new("/sys/devices/system/cpu/intel_pstate/hwp_dynamic_boost"));
+    configs.push(Config::new("/sys/devices/system/cpu/intel_pstate/status"));
+    configs.push(Config::new("/sys/devices/system/cpu/intel_pstate/energy_efficiency"));
+    configs.push(Config::new("/sys/devices/system/cpu/cpuidle/current_driver"));
+    configs.push(Config::new("/sys/devices/system/cpu/cpuidle/available_governors"));
+    configs.push(Config::new("/sys/devices/system/cpu/cpuidle/current_governor").add_permission(PERMISSION::WRITE));
+    configs
 }
 
-fn enumerate_vm() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/proc/sys/vm".to_string(),
-        configs: Vec::new(),
-    };
-    module.configs.push(Config::new("laptop_mode").add_permission(PERMISSION::WRITE));
-    module.configs.push(Config::new("dirty_writeback_centisecs").add_permission(PERMISSION::WRITE));
-    module.configs.push(Config::new("dirty_expire_centisecs").add_permission(PERMISSION::WRITE));
-    module.configs.push(Config::new("dirty_ratio").add_permission(PERMISSION::WRITE));
-    module.configs.push(Config::new("dirty_background_ratio").add_permission(PERMISSION::WRITE));
-    Ok(module)
+fn enumerate_vm() -> Vec<Config> {
+    let mut configs = Vec::new();
+    configs.push(Config::new("/proc/sys/vm/laptop_mode").add_permission(PERMISSION::WRITE));
+    configs.push(Config::new("/proc/sys/vm/dirty_writeback_centisecs").add_permission(PERMISSION::WRITE));
+    configs.push(Config::new("/proc/sys/vm/dirty_expire_centisecs").add_permission(PERMISSION::WRITE));
+    configs.push(Config::new("/proc/sys/vm/dirty_ratio").add_permission(PERMISSION::WRITE));
+    configs.push(Config::new("/proc/sys/vm/dirty_background_ratio").add_permission(PERMISSION::WRITE));
+    configs
 }
 
-fn enumerate_fs() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/proc/sys/fs".to_string(),
-        configs: Vec::new(),
-    };
-    module.configs.push(Config::new("xfs/age_buffer_centisecs").add_permission(PERMISSION::WRITE));
-    module.configs.push(Config::new("xfs/xfssyncd_centisecs").add_permission(PERMISSION::WRITE));
-    Ok(module)
+fn enumerate_fs() -> Vec<Config> {
+    let mut configs = Vec::new();
+    const ROOTPATH: &str = "/proc/sys/fs";
+    configs.push(Config::new(&format!("{}/xfs/age_buffer_centisecs", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs.push(Config::new(&format!("{}/xfs/xfssyncd_centisecs", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs
 }
 
-fn enumerate_acpi() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/sys/firmware/acpi".to_string(),
-        configs: Vec::new(),
-    };
-    module.configs.push(Config::new("platform_profile_choices").add_permission(PERMISSION::WRITE));
-    module.configs.push(Config::new("platform_profile").add_permission(PERMISSION::WRITE));
-    module.configs.push(Config::new("pm_profile").add_permission(PERMISSION::WRITE));
-    Ok(module)
+fn enumerate_acpi() -> Vec<Config> {
+    let mut configs = Vec::new();
+    const ROOTPATH: &str = "/sys/firmware/acpi";
+    configs.push(Config::new(&format!("{}/platform_profile_choices", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs.push(Config::new(&format!("{}/platform_profile", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs.push(Config::new(&format!("{}/pm_profile", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs
 }
 
-fn enumerate_audio() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/sys/module".to_string(),
-        configs: Vec::new(),
-    };
-    module.configs.push(Config::new("snd_hda_intel/parameters/power_save").add_permission(PERMISSION::WRITE));
-    module.configs.push(Config::new("snd_hda_intel/parameters/power_save_controller").add_permission(PERMISSION::WRITE));
-    module.configs.push(Config::new("snd_ac97_codec/parameters/power_save").add_permission(PERMISSION::WRITE));
-    Ok(module)
+fn enumerate_audio() -> Vec<Config> {
+    let mut configs = Vec::new();
+    const ROOTPATH: &str = "/sys/module";
+    configs.push(Config::new(&format!("{}/snd_hda_intel/parameters/power_save", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs.push(Config::new(&format!("{}/snd_hda_intel/parameters/power_save_controller", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs.push(Config::new(&format!("{}/snd_ac97_codec/parameters/power_save", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs
 }
 
-fn enumerate_graphics() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/sys/class/drm".to_string(),
-        configs: Vec::new(),
-    };
+fn enumerate_graphics() -> Vec<Config> {
+    let mut configs = Vec::new();
     fn is_cardname(entry: &walkdir::DirEntry) -> bool {
         if entry.path().to_str().unwrap() == "/sys/class/drm" {
             return false;
@@ -256,41 +262,35 @@ fn enumerate_graphics() -> std::io::Result<Module> {
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e|  (e.file_type().is_dir() || e.file_type().is_symlink()) && is_cardname(e)) {
-                let base_name = entry.path().file_name().unwrap().to_str().unwrap().to_string();
-                module.configs.push(Config::new(&format!("{}/device/power_dpm_force_performance_level", base_name)));
-                module.configs.push(Config::new(&format!("{}/device/power_dpm_state", base_name)));
-                module.configs.push(Config::new(&format!("{}/device/power_method", base_name)));
-                module.configs.push(Config::new(&format!("{}/device/power_profile", base_name)));
-                module.configs.push(Config::new(&format!("{}/gt_min_freq_mhz", base_name)));
-                module.configs.push(Config::new(&format!("{}/gt_max_freq_mhz", base_name)));
-                module.configs.push(Config::new(&format!("{}/gt_boost_freq_mhz", base_name)));
+                let fullpath = entry.path().to_str().unwrap();
+                configs.push(Config::new(&format!("{}/device/power_dpm_force_performance_level", fullpath)));
+                configs.push(Config::new(&format!("{}/device/power_dpm_state", fullpath)));
+                configs.push(Config::new(&format!("{}/device/power_method", fullpath)));
+                configs.push(Config::new(&format!("{}/device/power_profile", fullpath)));
+                configs.push(Config::new(&format!("{}/gt_min_freq_mhz", fullpath)));
+                configs.push(Config::new(&format!("{}/gt_max_freq_mhz", fullpath)));
+                configs.push(Config::new(&format!("{}/gt_boost_freq_mhz", fullpath)));
     }
-    Ok(module)
+    configs
 }
 
-fn enumerate_kernel() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/proc/sys/kernel".to_string(),
-        configs: Vec::new(),
-    };
-    module.configs.push(Config::new("nmi_watchdog").add_permission(PERMISSION::WRITE));
-    Ok(module)
+fn enumerate_kernel() -> Vec<Config> {
+    let mut configs = Vec::new();
+    const ROOTPATH: &str = "/proc/sys/kernel";
+    configs.push(Config::new(&format!("{}/nmi_watchdog", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs
 }
 
-fn enumerate_power() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/sys/power".to_string(),
-        configs: Vec::new(),
-    };
-    module.configs.push(Config::new("mem_sleep").add_permission(PERMISSION::WRITE));
-    Ok(module)
+fn enumerate_power() -> Vec<Config> {
+    const ROOTPATH: &str = "/sys/power";
+    let mut configs = Vec::new();
+    configs.push(Config::new(&format!("{}/mem_sleep", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs
 }
 
-fn enumerate_scsihost() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/sys/class/scsi_host".to_string(),
-        configs: Vec::new(),
-    };
+fn enumerate_scsihost() -> Vec<Config> {
+    let mut configs = Vec::new();
+    const ROOTPATH: &str = "/sys/class/scsi_host";
     fn is_scsihost_name(entry: &walkdir::DirEntry) -> bool {
         if entry.path().to_str().unwrap() == "/sys/class/scsi_host" {
             return false;
@@ -309,18 +309,16 @@ fn enumerate_scsihost() -> std::io::Result<Module> {
             .into_iter()
             .filter_map(Result::ok)
             .filter(|e|  (e.file_type().is_dir() || e.file_type().is_symlink()) && is_scsihost_name(e)) {
-                let base_name = entry.path().file_name().unwrap().to_str().unwrap().to_string();
-                module.configs.push(Config::new(&format!("{}/power/control", base_name)).add_permission(PERMISSION::WRITE));
-                module.configs.push(Config::new(&format!("{}/link_power_management_policy", base_name)).add_permission(PERMISSION::WRITE));
+                let fullpath = entry.path().to_str().unwrap();
+                configs.push(Config::new(&format!("{}/power/control", fullpath)).add_permission(PERMISSION::WRITE));
+                configs.push(Config::new(&format!("{}/link_power_management_policy", fullpath)).add_permission(PERMISSION::WRITE));
     }
-    Ok(module)
+    configs
 }
 
-fn enumerate_pci_device() ->  std::io::Result<Module> {
-    let mut module = Module {
-        root: "/sys/bus/pci/devices".to_string(),
-        configs: Vec::new(),
-    };
+fn enumerate_pci_device() ->  Vec<Config> {
+    let mut configs = Vec::new();
+    const ROOTPATH: &str = "/sys/bus/pci/devices";
     for entry in walkdir::WalkDir::new("/sys/bus/pci/devices")
             .max_depth(1)
             .sort_by_file_name()
@@ -328,18 +326,15 @@ fn enumerate_pci_device() ->  std::io::Result<Module> {
             .filter_map(Result::ok)
             .filter(|e|  e.file_type().is_dir() || e.file_type().is_symlink()) {
                 if entry.path().to_str().unwrap() != "/sys/bus/pci/devices" {
-                    let base_name = entry.path().file_name().unwrap().to_str().unwrap().to_string();
-                    module.configs.push(Config::new(&format!("{}/power/control", base_name)).add_permission(PERMISSION::WRITE));
+                    let fullpath = entry.path().to_str().unwrap();
+                    configs.push(Config::new(&format!("{}/power/control", fullpath)).add_permission(PERMISSION::WRITE));
                 }
     }
-    Ok(module)
+    configs
 }
 
-fn enumerate_block_device() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/sys/block".to_string(),
-        configs: Vec::new(),
-    };
+fn enumerate_block_device() -> Vec<Config> {
+    let mut configs = Vec::new();
     for entry in walkdir::WalkDir::new("/sys/block")
             .max_depth(1)
             .sort_by_file_name()
@@ -348,30 +343,24 @@ fn enumerate_block_device() -> std::io::Result<Module> {
             .filter(|e|  e.file_type().is_dir() || e.file_type().is_symlink()) {
                 if entry.path().to_str().unwrap() != "/sys/block" {
                     if !entry.file_name().to_str().unwrap().starts_with("loop") {
-                        let base_name = entry.path().file_name().unwrap().to_str().unwrap().to_string();
-                        module.configs.push(Config::new(&format!("{}/device/power/control", base_name)).add_permission(PERMISSION::WRITE));
-                        module.configs.push(Config::new(&format!("{}/device/power/autosuspend_delay_ms", base_name)).add_permission(PERMISSION::WRITE));
-                        module.configs.push(Config::new(&format!("{}/queue/scheduler", base_name)).add_permission(PERMISSION::WRITE));
+                        let fullpath = entry.path().to_str().unwrap();
+                        configs.push(Config::new(&format!("{}/device/power/control", fullpath)).add_permission(PERMISSION::WRITE));
+                        configs.push(Config::new(&format!("{}/device/power/autosuspend_delay_ms", fullpath)).add_permission(PERMISSION::WRITE));
+                        configs.push(Config::new(&format!("{}/queue/scheduler", fullpath)).add_permission(PERMISSION::WRITE));
                     }
                 }
     }
-    Ok(module)
+    configs
 }
 
-fn enumerate_pcie_aspm() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/sys/module/pcie_aspm".to_string(),
-        configs: Vec::new(),
-    };
-    module.configs.push(Config::new("parameters/policy").add_permission(PERMISSION::WRITE));
-    Ok(module)
+fn enumerate_pcie_aspm() -> Vec<Config> {
+    let mut configs = Vec::new();
+    configs.push(Config::new("/sys/module/pcie_aspm/parameters/policy").add_permission(PERMISSION::WRITE));
+    configs
 }
 
-fn enumerate_net_wakeup() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/sys/class/net".to_string(),
-        configs: Vec::new(),
-    };
+fn enumerate_net_wakeup() -> Vec<Config> {
+    let mut configs = Vec::new();
 
     for entry in walkdir::WalkDir::new("/sys/class/net")
             .max_depth(1)
@@ -382,19 +371,16 @@ fn enumerate_net_wakeup() -> std::io::Result<Module> {
                 if entry.path().to_str().unwrap() != "/sys/class/net" {
                     let name = entry.file_name().to_str().unwrap().to_string();
                     if name != "lo" && !name.starts_with("docker") {
-                        let base_name = entry.path().file_name().unwrap().to_str().unwrap().to_string();
-                        module.configs.push(Config::new(&format!("{}/device/power/wakeup", base_name)).add_permission(PERMISSION::WRITE));
+                        let fullpath = entry.path().to_str().unwrap();
+                        configs.push(Config::new(&format!("{}/device/power/wakeup", fullpath)).add_permission(PERMISSION::WRITE));
                     }
                 }
     }
-    Ok(module)
+    configs
 }
 
-fn enumerate_usb_wakeup() -> std::io::Result<Module> {
-    let mut module = Module {
-        root: "/sys/bus/usb/devices".to_string(),
-        configs: Vec::new(),
-    };
+fn enumerate_usb_wakeup() -> Vec<Config> {
+    let mut configs = Vec::new();
     fn is_usb_name(entry: &walkdir::DirEntry) -> bool {
         entry.file_name()
              .to_str()
@@ -412,10 +398,10 @@ fn enumerate_usb_wakeup() -> std::io::Result<Module> {
             .filter_map(Result::ok)
             .filter(|e| (e.file_type().is_dir() || e.file_type().is_symlink()) && is_usb_name(e)) {
                 if entry.path().to_str().unwrap() != "/sys/bus/usb/devices" {
-                    let base_name = entry.path().file_name().unwrap().to_str().unwrap().to_string();
-                    module.configs.push(Config::new(&format!("{}/power/wakeup", base_name)).add_permission(PERMISSION::WRITE));
-                    module.configs.push(Config::new(&format!("{}/link_power_management_policy", base_name)).add_permission(PERMISSION::WRITE));
+                    let fullpath = entry.path().to_str().unwrap();
+                    configs.push(Config::new(&format!("{}/power/wakeup", fullpath)).add_permission(PERMISSION::WRITE));
+                    configs.push(Config::new(&format!("{}/link_power_management_policy", fullpath)).add_permission(PERMISSION::WRITE));
                 }
     }
-    Ok(module)
+    configs
 }

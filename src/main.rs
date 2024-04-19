@@ -23,7 +23,10 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// get config
-    Config{},
+    Config{
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
     /// collect data
     Collect{
         /// sum time to collect
@@ -32,6 +35,16 @@ enum Command {
     },
     /// visual data
     Visual{},
+}
+
+#[derive(Subcommand)]
+enum ConfigCommand {
+    Show{},
+    Apply{
+        /// apply config from file
+        #[arg(short='f',long="file")]
+        file: String,
+    }
 }
 
 fn run_cmd_with_echo(cmd: &str, args: Vec<&str>) -> std::io::Result<()> {
@@ -299,51 +312,68 @@ fn main() -> std::io::Result<()> {
 
     if let Some(cmd) = cli.command {
         match cmd {
-            Command::Config{} => { 
-                show_os_info()?;
-                show_dim_info();
-                println!("--------------");
-                let modules = config::enumerate();
-                for module in modules {
-                    println!("{}", module);
-                }
-                //show_cpu_info();
-                //show_fs_info();
-                //show_platform_info();
-                //show_audio_info();
-                //show_graphics_info();
-                //show_watchdog_info();
-                //show_suspend_info();
-                //disk_info();
-                //wakeup_info();
-                println!("--------------");
-
-                let bats = battery::enumerate();
-                if !bats.is_empty() {
-                    println!(">> battery <<");
-                    println!("{:#?}", bats);
-                }
-                
-                let thermals = thermal::enumerate();
-                if !thermals.is_empty() {
-                    println!(">> thermal <<");
-                    println!("{:#?}", thermals);
-                }
-                
-                let hwmons = hwmon::enumerate();
-                for hwmon in hwmons {
-                    let fans = hwmon.fans();
-                    let temps = hwmon.temps();
-                    if !fans.is_empty() || !temps.is_empty() {
-                        println!(">> hwmon name: {} <<", hwmon.name);
-                        if !fans.is_empty() {
-                            println!("{:#?}", hwmon.fans());
+            Command::Config{command} => { 
+                match command {
+                    ConfigCommand::Show {  } => {
+                        show_os_info()?;
+                        show_dim_info();
+                        println!("--------------");
+                        let module = config::enumerate();
+                        for config in module.configs {
+                            println!("{}", config);
                         }
-                        if !temps.is_empty() {
-                            println!("{:#?}", hwmon.temps());
+                        println!("--------------");
+
+                        let bats = battery::enumerate();
+                        if !bats.is_empty() {
+                            println!(">> battery <<");
+                            println!("{:#?}", bats);
+                        }
+                        
+                        let thermals = thermal::enumerate();
+                        if !thermals.is_empty() {
+                            println!(">> thermal <<");
+                            println!("{:#?}", thermals);
+                        }
+                        
+                        let hwmons = hwmon::enumerate();
+                        for hwmon in hwmons {
+                            let fans = hwmon.fans();
+                            let temps = hwmon.temps();
+                            if !fans.is_empty() || !temps.is_empty() {
+                                println!(">> hwmon name: {} <<", hwmon.name);
+                                if !fans.is_empty() {
+                                    println!("{:#?}", hwmon.fans());
+                                }
+                                if !temps.is_empty() {
+                                    println!("{:#?}", hwmon.temps());
+                                }
+                            }
+                        }
+                    },
+                    ConfigCommand::Apply { file } => {
+                        let module = config::Module::load(&file);
+                        let local_module = config::enumerate();
+
+                        let mut need_change = Vec::new();
+                        for config in &module.configs {
+                            for local_config in &local_module.configs {
+                                if config.node == local_config.node && local_config.value != None && config.value != local_config.value && local_config.writeable() {
+                                    need_change.push(config.clone());
+                                }
+                            }
+                        }
+
+                        for config in need_change {
+                            if let Some(val) = &config.value {
+                                println!("apply: {} = {}", config.node, val);
+                                config.apply().expect(&format!("ERROR: apply {} failed", config.node))
+                            }
+                            
                         }
                     }
                 }
+                
             },
             Command::Collect { time } => {
                 let mut collectors: Vec<Box<dyn collector::Collector>> = Vec::new();
