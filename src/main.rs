@@ -303,15 +303,19 @@ fn main() -> std::io::Result<()> {
                 show_os_info()?;
                 show_dim_info();
                 println!("--------------");
-                show_cpu_info();
-                show_fs_info();
-                show_platform_info();
-                show_audio_info();
-                show_graphics_info();
-                show_watchdog_info();
-                show_suspend_info();
-                disk_info();
-                wakeup_info();
+                let modules = config::enumerate();
+                for module in modules {
+                    println!("{}", module);
+                }
+                //show_cpu_info();
+                //show_fs_info();
+                //show_platform_info();
+                //show_audio_info();
+                //show_graphics_info();
+                //show_watchdog_info();
+                //show_suspend_info();
+                //disk_info();
+                //wakeup_info();
                 println!("--------------");
 
                 let bats = battery::enumerate();
