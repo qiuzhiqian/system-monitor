@@ -37,6 +37,15 @@ impl Config {
         self
     }
 
+    fn handle<F>(mut self, f: F) -> Self where
+        F: Fn(&str) -> String {
+        self.value = match self.value {
+            Some(val) => Some(f(&val)),
+            None => None
+        };
+        self
+    }
+
     pub fn apply(&self) ->std::io::Result<()> {
         match &self.value {
             Some(val) => {
@@ -355,7 +364,19 @@ fn enumerate_block_device() -> Vec<Config> {
 
 fn enumerate_pcie_aspm() -> Vec<Config> {
     let mut configs = Vec::new();
-    configs.push(Config::new("/sys/module/pcie_aspm/parameters/policy").add_permission(PERMISSION::WRITE));
+    // [default] performance powersave powersupersave
+    configs.push(Config::new("/sys/module/pcie_aspm/parameters/policy").add_permission(PERMISSION::WRITE).handle(|s| {
+        let start = match  s.find("[") {
+            Some(s) => s + 1,
+            None => 0,
+        };
+        let end = match s.find("]") {
+            Some(e) => e,
+            None => s.len(),
+        };
+
+        s[start..end].to_string()
+    }));
     configs
 }
 
