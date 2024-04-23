@@ -1,4 +1,4 @@
-use std::io::BufRead;
+use std::{io::BufRead, rc::Rc};
 
 use bitflags::bitflags;
 
@@ -11,15 +11,21 @@ bitflags!{
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Config {
     pub node: String,
     pub value: Option<String>,
     permission: PERMISSION,
+    pub handler: Rc<Box<dyn Fn(&str) -> String>>,
 }
 
 impl Config {
     fn new(node: &str) -> Config {
+        Self::new_with_handler(node, |s| {s.to_string()})
+    }
+
+    fn new_with_handler<F: 'static>(node: &str,f: F)  -> Config where
+        F: Fn(&str) -> String {
         let value  = match crate::utils::read_line(node) {
             Ok(v) => Some(v),
             Err(e) => None,
@@ -29,6 +35,7 @@ impl Config {
             node: node.to_string(),
             value,
             permission: PERMISSION::READ,
+            handler: Rc::new(Box::new(f)),
         }
     }
 
@@ -37,19 +44,11 @@ impl Config {
         self
     }
 
-    fn handle<F>(mut self, f: F) -> Self where
-        F: Fn(&str) -> String {
-        self.value = match self.value {
-            Some(val) => Some(f(&val)),
-            None => None
-        };
-        self
-    }
-
     pub fn apply(&self) ->std::io::Result<()> {
         match &self.value {
             Some(val) => {
-                crate::utils::write_line(&self.node, &val).unwrap();
+                let raw_val = (self.handler)(&val);
+                crate::utils::write_line(&self.node, &raw_val).unwrap();
                 Ok(())
             },
             None => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "val is none")),
@@ -119,42 +118,25 @@ impl std::fmt::Display for Config {
     }
 }
 
-pub struct Module {
-    info: String,
-    pub configs: Vec<Config>,
-}
+pub fn enumerate() -> Vec<Config> {
+    let mut configs = Vec::new();
 
-impl Module {
-    pub fn load(infile: &str) -> Module {
-        Module {
-            info: "".to_string(),
-            configs: Config::load(infile),
-        }
-    }
-}
-
-pub fn enumerate() -> Module {
-    let mut module = Module {
-        info: "".to_string(),
-        configs: Vec::new(),
-    };
-
-    module.configs.append(&mut enumerate_cpu());
-    module.configs.append(&mut enumerate_vm());
-    module.configs.append(&mut enumerate_fs());
-    module.configs.append(&mut enumerate_acpi());
-    module.configs.append(&mut enumerate_audio());
-    module.configs.append(&mut enumerate_graphics());
-    module.configs.append(&mut enumerate_kernel());
-    module.configs.append(&mut enumerate_power());
-    module.configs.append(&mut enumerate_scsihost());
-    module.configs.append(&mut enumerate_pci_device());
-    module.configs.append(&mut enumerate_block_device());
-    module.configs.append(&mut enumerate_pcie_aspm());
-    module.configs.append(&mut enumerate_net_wakeup());
-    module.configs.append(&mut enumerate_usb_wakeup());
+    configs.append(&mut enumerate_cpu());
+    configs.append(&mut enumerate_vm());
+    configs.append(&mut enumerate_fs());
+    configs.append(&mut enumerate_acpi());
+    configs.append(&mut enumerate_audio());
+    configs.append(&mut enumerate_graphics());
+    configs.append(&mut enumerate_kernel());
+    configs.append(&mut enumerate_power());
+    configs.append(&mut enumerate_scsihost());
+    configs.append(&mut enumerate_pci_device());
+    configs.append(&mut enumerate_block_device());
+    configs.append(&mut enumerate_pcie_aspm());
+    configs.append(&mut enumerate_net_wakeup());
+    configs.append(&mut enumerate_usb_wakeup());
     
-    module
+    configs
 }
 
 fn enumerate_cpu() -> Vec<Config> {
@@ -287,13 +269,27 @@ fn enumerate_kernel() -> Vec<Config> {
     let mut configs = Vec::new();
     const ROOTPATH: &str = "/proc/sys/kernel";
     configs.push(Config::new(&format!("{}/nmi_watchdog", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs.push(Config::new(&format!("{}/sched_rr_timeslice_ms", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs.push(Config::new(&format!("{}/sched_rt_period_us", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs.push(Config::new(&format!("{}/sched_rt_runtime_us", ROOTPATH)).add_permission(PERMISSION::WRITE));
     configs
 }
 
 fn enumerate_power() -> Vec<Config> {
     const ROOTPATH: &str = "/sys/power";
     let mut configs = Vec::new();
-    configs.push(Config::new(&format!("{}/mem_sleep", ROOTPATH)).add_permission(PERMISSION::WRITE));
+    configs.push(Config::new_with_handler(&format!("{}/mem_sleep", ROOTPATH), |s| {
+        let start = match  s.find("[") {
+            Some(s) => s + 1,
+            None => 0,
+        };
+        let end = match s.find("]") {
+            Some(e) => e,
+            None => s.len(),
+        };
+
+        s[start..end].to_string()
+    }).add_permission(PERMISSION::WRITE));
     configs
 }
 
@@ -355,7 +351,18 @@ fn enumerate_block_device() -> Vec<Config> {
                         let fullpath = entry.path().to_str().unwrap();
                         configs.push(Config::new(&format!("{}/device/power/control", fullpath)).add_permission(PERMISSION::WRITE));
                         configs.push(Config::new(&format!("{}/device/power/autosuspend_delay_ms", fullpath)).add_permission(PERMISSION::WRITE));
-                        configs.push(Config::new(&format!("{}/queue/scheduler", fullpath)).add_permission(PERMISSION::WRITE));
+                        configs.push(Config::new_with_handler(&format!("{}/queue/scheduler", fullpath), |s| {
+                            let start = match  s.find("[") {
+                                Some(s) => s + 1,
+                                None => 0,
+                            };
+                            let end = match s.find("]") {
+                                Some(e) => e,
+                                None => s.len(),
+                            };
+                    
+                            s[start..end].to_string()
+                        }).add_permission(PERMISSION::WRITE));
                     }
                 }
     }
@@ -365,7 +372,7 @@ fn enumerate_block_device() -> Vec<Config> {
 fn enumerate_pcie_aspm() -> Vec<Config> {
     let mut configs = Vec::new();
     // [default] performance powersave powersupersave
-    configs.push(Config::new("/sys/module/pcie_aspm/parameters/policy").add_permission(PERMISSION::WRITE).handle(|s| {
+    configs.push(Config::new_with_handler("/sys/module/pcie_aspm/parameters/policy", |s| {
         let start = match  s.find("[") {
             Some(s) => s + 1,
             None => 0,
@@ -376,7 +383,7 @@ fn enumerate_pcie_aspm() -> Vec<Config> {
         };
 
         s[start..end].to_string()
-    }));
+    }).add_permission(PERMISSION::WRITE));
     configs
 }
 

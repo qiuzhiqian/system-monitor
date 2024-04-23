@@ -100,8 +100,8 @@ fn main() -> std::io::Result<()> {
                         show_os_info()?;
                         show_dim_info();
                         println!("--------------");
-                        let module = config::enumerate();
-                        for config in module.configs {
+                        let configs = config::enumerate();
+                        for config in configs {
                             println!("{}", config);
                         }
                         println!("--------------");
@@ -134,12 +134,12 @@ fn main() -> std::io::Result<()> {
                         }
                     },
                     ConfigCommand::Apply { file } => {
-                        let module = config::Module::load(&file);
-                        let local_module = config::enumerate();
+                        let configs = config::Config::load(&file);
+                        let local_configs = config::enumerate();
 
                         let mut need_change = Vec::new();
-                        for config in &module.configs {
-                            for local_config in &local_module.configs {
+                        for config in &configs {
+                            for local_config in &local_configs {
                                 if config.node == local_config.node && local_config.value != None && config.value != local_config.value && local_config.writeable() {
                                     need_change.push(config.clone());
                                 }
