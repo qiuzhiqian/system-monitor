@@ -141,7 +141,9 @@ fn main() -> std::io::Result<()> {
                         for config in &configs {
                             for local_config in &local_configs {
                                 if config.node == local_config.node && local_config.value != None && config.value != local_config.value && local_config.writeable() {
-                                    need_change.push(config.clone());
+                                    let mut config_new = local_config.clone();
+                                    config_new.value = config.value.clone();
+                                    need_change.push(config_new);
                                 }
                             }
                         }
@@ -149,7 +151,9 @@ fn main() -> std::io::Result<()> {
                         for config in need_change {
                             if let Some(val) = &config.value {
                                 println!("apply: {} = {}", config.node, val);
-                                config.apply().expect(&format!("ERROR: apply {} failed", config.node))
+                                if let Err(e) = config.apply() {
+                                    println!("ERROR: apply {} failed {}", config.node, e)
+                                }
                             }
                         }
                     }

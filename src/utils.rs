@@ -12,7 +12,8 @@ pub fn read_line(path: &str) -> std::io::Result<String> {
 
 pub fn write_line(path: &str, val: &str) -> std::io::Result<()> {
     let mut input = File::create(path)?;
-    input.write_all(val.as_bytes())
+    let val_line = format!("{}\n", val);
+    input.write_all(val_line.as_bytes())
 }
 
 pub fn read_all_line(path: &str) -> std::io::Result<String> {

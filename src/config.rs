@@ -48,7 +48,7 @@ impl Config {
         match &self.value {
             Some(val) => {
                 let raw_val = (self.handler)(&val);
-                crate::utils::write_line(&self.node, &raw_val).unwrap();
+                crate::utils::write_line(&self.node, &raw_val)?;
                 Ok(())
             },
             None => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "val is none")),
